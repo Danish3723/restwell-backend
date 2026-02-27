@@ -1,0 +1,197 @@
+const express = require("express");
+const router = express.Router();
+const { db } = require("../firebase");
+
+/* =====================================================
+   GET ALL BOOKINGS (ADMIN)
+===================================================== */
+router.get("/", async (req, res) => {
+  try {
+    const snapshot = await db
+      .collection("bookings")
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const bookings = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json(bookings);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* =====================================================
+   GET BOOKINGS BY PHONE (USER)
+===================================================== */
+router.get("/phone/:phone", async (req, res) => {
+  try {
+    const phone = req.params.phone;
+
+    const snapshot = await db
+      .collection("bookings")
+      .where("phone", "==", phone)
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const bookings = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json(bookings);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* =====================================================
+   CREATE BOOKING (UPDATED & FIXED)
+===================================================== */
+router.post("/", async (req, res) => {
+  try {
+    const {
+      userName,
+      phone,
+      serviceName,
+      preferredDate,
+      timeSlot,
+      description,
+      imageUrls
+    } = req.body;
+
+    if (!userName || !phone || !serviceName || !preferredDate || !timeSlot) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const booking = {
+      userName,
+      phone,
+      serviceName,
+      preferredDate,
+      timeSlot,
+      description: description || "",
+      imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
+      status: "pending",
+      createdAt: new Date()
+    };
+
+    const docRef = await db.collection("bookings").add(booking);
+
+    res.json({
+      message: "Booking created successfully",
+      bookingId: docRef.id
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* =====================================================
+   APPROVE BOOKING
+===================================================== */
+router.put("/:id/approve", async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+
+    if (!bookingSnap.exists) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const bookingData = bookingSnap.data();
+
+    await bookingRef.update({ status: "approved" });
+
+    await db.collection("adminLogs").add({
+      action: "Approved",
+      bookingId,
+      admin: "Admin",
+      time: new Date()
+    });
+
+    const message =
+      `Hello ${bookingData.userName}, your booking for ${bookingData.serviceName} on ${bookingData.preferredDate} (${bookingData.timeSlot}) has been APPROVED ✅. - RestWell`;
+
+    const whatsappLink =
+      `https://wa.me/91${bookingData.phone}?text=${encodeURIComponent(message)}`;
+
+    res.json({
+      message: "Booking approved",
+      whatsappLink
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* =====================================================
+   REJECT BOOKING
+===================================================== */
+router.put("/:id/reject", async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+
+    if (!bookingSnap.exists) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const bookingData = bookingSnap.data();
+
+    await bookingRef.update({ status: "rejected" });
+
+    await db.collection("adminLogs").add({
+      action: "Rejected",
+      bookingId,
+      admin: "Admin",
+      time: new Date()
+    });
+
+    const message =
+      `Hello ${bookingData.userName}, your booking for ${bookingData.serviceName} on ${bookingData.preferredDate} (${bookingData.timeSlot}) has been REJECTED ❌. - RestWell`;
+
+    const whatsappLink =
+      `https://wa.me/91${bookingData.phone}?text=${encodeURIComponent(message)}`;
+
+    res.json({
+      message: "Booking rejected",
+      whatsappLink
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* =====================================================
+   GET ADMIN LOGS
+===================================================== */
+router.get("/logs", async (req, res) => {
+  try {
+    const snapshot = await db
+      .collection("adminLogs")
+      .orderBy("time", "desc")
+      .get();
+
+    const logs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json(logs);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+module.exports = router;
