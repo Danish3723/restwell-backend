@@ -108,7 +108,8 @@ router.put("/:id/approve", async (req, res) => {
 
     const bookingData = bookingSnap.data();
 
-    await bookingRef.update({ status: "approved" });
+    // Update status to in-progress
+    await bookingRef.update({ status: "in-progress" });
 
     await db.collection("adminLogs").add({
       action: "Approved",
@@ -117,7 +118,16 @@ router.put("/:id/approve", async (req, res) => {
       time: new Date()
     });
 
-    res.json({ message: "Booking approved" });
+    const message =
+      `Hello ${bookingData.userName}, your booking for ${bookingData.serviceName} on ${bookingData.preferredDate} (${bookingData.timeSlot}) has been APPROVED ✅. - RestWell`;
+
+    const whatsappLink =
+      `https://wa.me/91${bookingData.phone}?text=${encodeURIComponent(message)}`;
+
+    res.json({
+      message: "Booking approved",
+      whatsappLink
+    });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -137,6 +147,9 @@ router.put("/:id/reject", async (req, res) => {
       return res.status(404).json({ error: "Booking not found" });
     }
 
+    const bookingData = bookingSnap.data();
+
+    // Update status
     await bookingRef.update({ status: "rejected" });
 
     await db.collection("adminLogs").add({
@@ -146,7 +159,16 @@ router.put("/:id/reject", async (req, res) => {
       time: new Date()
     });
 
-    res.json({ message: "Booking rejected" });
+    const message =
+      `Hello ${bookingData.userName}, your booking for ${bookingData.serviceName} on ${bookingData.preferredDate} (${bookingData.timeSlot}) has been REJECTED ❌. - RestWell`;
+
+    const whatsappLink =
+      `https://wa.me/91${bookingData.phone}?text=${encodeURIComponent(message)}`;
+
+    res.json({
+      message: "Booking rejected",
+      whatsappLink
+    });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
