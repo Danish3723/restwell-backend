@@ -50,7 +50,7 @@ router.get("/phone/:phone", async (req, res) => {
 });
 
 /* =====================================================
-   CREATE BOOKING (UPDATED & FIXED)
+   CREATE BOOKING
 ===================================================== */
 router.post("/", async (req, res) => {
   try {
@@ -76,6 +76,7 @@ router.post("/", async (req, res) => {
       timeSlot,
       description: description || "",
       imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
+      technician: "",
       status: "pending",
       createdAt: new Date()
     };
@@ -116,16 +117,7 @@ router.put("/:id/approve", async (req, res) => {
       time: new Date()
     });
 
-    const message =
-      `Hello ${bookingData.userName}, your booking for ${bookingData.serviceName} on ${bookingData.preferredDate} (${bookingData.timeSlot}) has been APPROVED ✅. - RestWell`;
-
-    const whatsappLink =
-      `https://wa.me/91${bookingData.phone}?text=${encodeURIComponent(message)}`;
-
-    res.json({
-      message: "Booking approved",
-      whatsappLink
-    });
+    res.json({ message: "Booking approved" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -145,8 +137,6 @@ router.put("/:id/reject", async (req, res) => {
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    const bookingData = bookingSnap.data();
-
     await bookingRef.update({ status: "rejected" });
 
     await db.collection("adminLogs").add({
@@ -156,16 +146,82 @@ router.put("/:id/reject", async (req, res) => {
       time: new Date()
     });
 
-    const message =
-      `Hello ${bookingData.userName}, your booking for ${bookingData.serviceName} on ${bookingData.preferredDate} (${bookingData.timeSlot}) has been REJECTED ❌. - RestWell`;
+    res.json({ message: "Booking rejected" });
 
-    const whatsappLink =
-      `https://wa.me/91${bookingData.phone}?text=${encodeURIComponent(message)}`;
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    res.json({
-      message: "Booking rejected",
-      whatsappLink
+/* =====================================================
+   UPDATE STATUS (In Progress / Completed)
+===================================================== */
+router.put("/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const bookingId = req.params.id;
+
+    await db.collection("bookings")
+      .doc(bookingId)
+      .update({ status });
+
+    await db.collection("adminLogs").add({
+      action: `Status changed to ${status}`,
+      bookingId,
+      admin: "Admin",
+      time: new Date()
     });
+
+    res.json({ message: "Status updated successfully" });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* =====================================================
+   ASSIGN TECHNICIAN
+===================================================== */
+router.put("/:id/assign", async (req, res) => {
+  try {
+    const { technician } = req.body;
+    const bookingId = req.params.id;
+
+    await db.collection("bookings")
+      .doc(bookingId)
+      .update({ technician });
+
+    await db.collection("adminLogs").add({
+      action: `Technician assigned: ${technician}`,
+      bookingId,
+      admin: "Admin",
+      time: new Date()
+    });
+
+    res.json({ message: "Technician assigned successfully" });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* =====================================================
+   DELETE BOOKING
+===================================================== */
+router.delete("/:id", async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+
+    await db.collection("bookings").doc(bookingId).delete();
+
+    await db.collection("adminLogs").add({
+      action: "Deleted booking",
+      bookingId,
+      admin: "Admin",
+      time: new Date()
+    });
+
+    res.json({ message: "Booking deleted successfully" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
