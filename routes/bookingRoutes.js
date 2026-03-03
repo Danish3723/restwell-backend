@@ -251,7 +251,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 /* =====================================================
-   GET ADMIN LOGS
+   GET ADMIN LOGS (FIXED TIMESTAMP)
 ===================================================== */
 router.get("/logs", async (req, res) => {
   try {
@@ -260,10 +260,24 @@ router.get("/logs", async (req, res) => {
       .orderBy("time", "desc")
       .get();
 
-    const logs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const logs = snapshot.docs.map(doc => {
+      const data = doc.data();
+
+      let formattedTime = null;
+
+      // Convert Firestore Timestamp properly
+      if (data.time && typeof data.time.toDate === "function") {
+        formattedTime = data.time.toDate().toISOString();
+      }
+
+      return {
+        id: doc.id,
+        action: data.action,
+        bookingId: data.bookingId,
+        admin: data.admin,
+        time: formattedTime
+      };
+    });
 
     res.json(logs);
 
